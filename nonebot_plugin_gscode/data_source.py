@@ -1,13 +1,19 @@
 import json
+from datetime import datetime, timedelta, timezone
+from re import findall, sub
 from time import time
-from re import sub, findall
 from typing import Dict, List, Union
-from datetime import datetime, timezone, timedelta
 
 from httpx import AsyncClient
 from nonebot.log import logger
-from nonebot.adapters.onebot.v11 import Message, MessageSegment
+from nonebot_plugin_saa import (
+    AggregatedMessageFactory,
+    MessageFactory,
+    PlatformTarget,
+    Text,
+)
 
+Sendable = Union[MessageFactory, AggregatedMessageFactory]
 TZ = timezone(timedelta(hours=8))
 
 
@@ -124,83 +130,37 @@ async def get_codes(version: str, act_id: str) -> Union[Dict, List[Dict]]:
     return codes_data
 
 
-async def get_msg(mhy_type) -> List[MessageSegment]:
+async def get_msg(send_target: PlatformTarget, mhy_type) -> MessageFactory:
     """生成最新前瞻直播兑换码合并转发消息"""
 
     act_id = await get_act_id(mhy_type=mhy_type)
-    nickname = "原神前瞻直播" if mhy_type == "gs" else "星穹铁道前瞻直播"
     if not act_id:
-        return [
-            MessageSegment.node_custom(
-                user_id=2854196320,
-                nickname=nickname,
-                content=Message(MessageSegment.text("暂无前瞻直播资讯！")),
-            )
-        ]
+        return MessageFactory([Text("暂无前瞻直播资讯！")])
 
     live_data = await get_live_data(act_id)
     if live_data.get("error"):
-        return [
-            MessageSegment.node_custom(
-                user_id=2854196320,
-                nickname=nickname,
-                content=Message(MessageSegment.text(live_data["error"])),
-            )
-        ]
+        return MessageFactory([Text(live_data["error"])])
     elif live_data.get("start"):
-        return [
-            MessageSegment.node_custom(
-                user_id=2854196320,
-                nickname=live_data["title"],
-                content=Message(MessageSegment.image(live_data["header"])),
-            ),
-            MessageSegment.node_custom(
-                user_id=2854196320,
-                nickname=live_data["title"],
-                content=Message(MessageSegment.text(live_data["room"])),
-            ),
-        ]
+        return MessageFactory([Text(live_data["header"])]) + MessageFactory(
+            [Text(live_data["room"])]
+        )
 
     codes_data = await get_codes(live_data["code_ver"], act_id)
     if isinstance(codes_data, Dict):
-        return [
-            MessageSegment.node_custom(
-                user_id=2854196320,
-                nickname=live_data["title"],
-                content=Message(MessageSegment.text(codes_data["error"])),
+        return MessageFactory([Text(live_data["error"])])
+    codes_msg = MessageFactory(
+        [
+            Text(
+                f"当前发布了 {len(codes_data)} 个兑换码，请在有效期内及时兑换哦~"
+                + "\n\n* 官方接口数据有 2 分钟左右延迟，请耐心等待下~"
             )
         ]
-    codes_msg = [
-        MessageSegment.node_custom(
-            user_id=2854196320,
-            nickname=live_data["title"],
-            content=Message(
-                MessageSegment.text(
-                    f"当前发布了 {len(codes_data)} 个兑换码，请在有效期内及时兑换哦~"
-                    + "\n\n* 官方接口数据有 2 分钟左右延迟，请耐心等待下~"
-                )
-            ),
-        ),
-        *[
-            MessageSegment.node_custom(
-                user_id=2854196320,
-                nickname=code["items"] or live_data["title"],
-                content=Message(MessageSegment.text(code["code"])),
-            )
-            for code in codes_data
-        ],
-    ]
+    )
+    for code in codes_data:
+        codes_msg.append((code["code"]))
     if live_data.get("review"):
         codes_msg.append(
-            MessageSegment.node_custom(
-                user_id=2854196320,
-                nickname=live_data["title"],
-                content=Message(
-                    MessageSegment.text(
-                        "直播已经结束，查看回放：\n\n"
-                        + f"https://www.miyoushe.com/ys/article/{live_data['review']}"
-                    )
-                ),
-            )
+            "直播已经结束，查看回放：\n\n"
+            + f"https://www.miyoushe.com/ys/article/{live_data['review']}"
         )
     return codes_msg

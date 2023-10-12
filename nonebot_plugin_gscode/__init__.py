@@ -1,8 +1,11 @@
 from nonebot.typing import T_State
-from nonebot.adapters.onebot.v11 import Bot
 from nonebot.internal.matcher import Matcher
 from nonebot.plugin import PluginMetadata, on_command
-from nonebot.adapters.onebot.v11.event import MessageEvent, GroupMessageEvent
+from nonebot_plugin_saa import (
+    SaaTarget,
+    AggregatedMessageFactory,
+    enable_auto_select_bot,
+)
 
 from .data_source import get_msg
 
@@ -21,15 +24,14 @@ sr_code_matcher = on_command("srcode", aliases={"铁道兑换码", "星穹铁道
 
 @gs_code_matcher.handle()
 @sr_code_matcher.handle()
-async def _(bot: Bot, event: MessageEvent, state: T_State, matcher: Matcher):
+async def _(target: SaaTarget, state: T_State, matcher: Matcher):
     if str(state["_prefix"]["command_arg"]):
         await matcher.finish()
-    codes = (
-        await get_msg("gs")
-        if isinstance(matcher, gs_code_matcher)
-        else await get_msg("sr")
+    codes = await get_msg(
+        target, "gs" if isinstance(matcher, gs_code_matcher) else "sr"
     )
-    if isinstance(event, GroupMessageEvent):
-        await bot.send_group_forward_msg(group_id=event.group_id, messages=codes)
-    else:
-        await bot.send_private_forward_msg(user_id=event.user_id, messages=codes)
+    msg = AggregatedMessageFactory(list(codes))
+    await msg.send_to(target)
+
+
+enable_auto_select_bot()
