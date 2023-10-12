@@ -1,16 +1,19 @@
 import json
-from datetime import datetime, timedelta, timezone
-from re import findall, sub
 from time import time
+from re import sub, findall
 from typing import Dict, List, Union
+from datetime import datetime, timezone, timedelta
 
+from nonebot import require
 from httpx import AsyncClient
 from nonebot.log import logger
-from nonebot_plugin_saa import (
-    AggregatedMessageFactory,
+
+require("nonebot_plugin_saa")
+from nonebot_plugin_saa import (  # noqa: E402
+    Text,
     MessageFactory,
     PlatformTarget,
-    Text,
+    AggregatedMessageFactory,
 )
 
 Sendable = Union[MessageFactory, AggregatedMessageFactory]
@@ -135,7 +138,8 @@ async def get_msg(send_target: PlatformTarget, mhy_type) -> MessageFactory:
 
     act_id = await get_act_id(mhy_type=mhy_type)
     if not act_id:
-        return MessageFactory([Text("暂无前瞻直播资讯！")])
+        game_name = "原神" if mhy_type == "gs" else "星穹铁道"
+        return MessageFactory([Text(f"{game_name}暂无前瞻直播资讯！")])
 
     live_data = await get_live_data(act_id)
     if live_data.get("error"):
@@ -151,7 +155,8 @@ async def get_msg(send_target: PlatformTarget, mhy_type) -> MessageFactory:
     codes_msg = MessageFactory(
         [
             Text(
-                f"当前发布了 {len(codes_data)} 个兑换码，请在有效期内及时兑换哦~"
+                f"{live_data['title']}"
+                + f"\n\n* 当前发布了{len(codes_data)}个兑换码，请在有效期内及时兑换哦~"
                 + "\n\n* 官方接口数据有 2 分钟左右延迟，请耐心等待下~"
             )
         ]

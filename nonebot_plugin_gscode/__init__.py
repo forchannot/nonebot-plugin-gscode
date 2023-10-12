@@ -1,13 +1,16 @@
+from nonebot import require
 from nonebot.typing import T_State
 from nonebot.internal.matcher import Matcher
 from nonebot.plugin import PluginMetadata, on_command
-from nonebot_plugin_saa import (
+
+require("nonebot_plugin_saa")
+from nonebot_plugin_saa import (  # noqa: E402
     SaaTarget,
     AggregatedMessageFactory,
     enable_auto_select_bot,
 )
 
-from .data_source import get_msg
+from .data_source import get_msg  # noqa: E402
 
 __plugin_meta__ = PluginMetadata(
     name="GsCode",
